@@ -1,8 +1,12 @@
 import scrapy
 import json
 import csv
+import os
+import ssl
 import urllib.request
 
+if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 class ConstruSpider(scrapy.Spider):
     name = "construtechs"
