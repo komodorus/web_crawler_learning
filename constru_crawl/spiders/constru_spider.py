@@ -1,4 +1,8 @@
 import scrapy
+import json
+import csv
+import urllib.request
+
 
 class ConstruSpider(scrapy.Spider):
     name = "construtechs"
@@ -15,23 +19,57 @@ class ConstruSpider(scrapy.Spider):
 
     def parse(self, response):
 
-        startup_names = response.xpath('/html/body/div[1]/div/div[2]/div[1]/div[1]/table/tbody/tr/td[2]/a/text()').getall()
-        startup_ocupation = response.xpath('/html/body/div[1]/div/div[2]/div[1]/div[1]/table/tbody/tr/td[3][not(h3)]/text()').getall()
-        startup_links = response.xpath('/html/body/div[1]/div/div[2]/div[1]/div[1]/table/tbody/tr/td[2]/a/@href').getall()
+        startup_data = response.xpath('/html/body/div[1]/div/div[2]/div[1]/div[1]/table/tbody/tr[position()>1]')
+        
+        for startup in startup_data:
+            
+            if startup.xpath('td[3]/text()').get() is None:
+                ocupation = startup.xpath('td[3]/strong/text()').get()
+            else:
+                ocupation = startup.xpath('td[3]/text()').get()
 
-        for num, name in enumerate(startup_names, start=0):
-            self.startup_list.append({"name": name})
-            self.startup_list[num]["ocupation"] = startup_ocupation[num]
+            self.startup_list.append({
+                "name": startup.css('td a::text').get(),
+                "ocupation": ocupation
+            })
 
-        for url in startup_links:
-            yield scrapy.Request(url, callback=self.parse_startup_links)
+        for num, startup in enumerate(startup_data, start=0):
 
-        print(self.startup_list)
+            url = startup.xpath('td[2]/a/@href').get()
+            
+            if url is not None:
+                yield scrapy.Request(url, callback=self.parse_startup_links, meta={'index': num})
+            else:
+                self.startup_list[num]["url"] = "null"
 
     def parse_startup_links(self, response):
-        yield self.get_metrics(response.xpath('//*[@id="company_header"]/div[1]/h1/small/a/@href').get())
+        url = response.xpath('//*[@id="company_header"]/div[1]/h1/small/a/@href').get()
+        if url is not None:
+            self.startup_list[response.meta.get('index')]["url"] = url
+        else:
+            self.startup_list[response.meta.get('index')]["url"] = "null"
 
-    def get_metrics(self, url):
-        print(url)
-    # @todo Build function to generate XML based on the dict created beforehand 
-    # def build_xml(list):
+    def get_sharedcount(self):
+        for startup in self.startup_list:
+            try:
+                if startup["url"] == "null":
+                    startup["facebook_count"] = "null"
+                    print('invalid url')
+                else:
+                    request_url = 'https://api.sharedcount.com/v1.0/?apikey=91aeac3cae7c46160618baba16dcb1f5df782761&url=' + startup["url"]
+                    startup["facebook_count"] = json.load(urllib.request.urlopen(request_url))["Facebook"]["total_count"]
+                    print(startup["facebook_count"])
+            except KeyError as e:
+                print('I got a KeyError - reason "%s"' % str(e))
+                print(startup)
+
+    def __del__(self):
+        print('iniciando sharedCount')
+        self.get_sharedcount()
+        print('gerando CSV')
+        with open('construtechs_spider.csv', 'w') as f:  
+            w = csv.DictWriter(f, self.startup_list[0].keys())
+            w.writeheader()
+            for row in self.startup_list:
+                w.writerow(row)
+        print('DONE')
