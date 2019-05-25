@@ -3,7 +3,7 @@ import json
 import csv
 import os
 import ssl
-import urllib.request
+from urllib import request
 
 if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
     ssl._create_default_https_context = ssl._create_unverified_context
@@ -61,8 +61,10 @@ class ConstruSpider(scrapy.Spider):
                     print('invalid url')
                 else:
                     request_url = 'https://api.sharedcount.com/v1.0/?apikey=91aeac3cae7c46160618baba16dcb1f5df782761&url=' + startup["url"]
-                    startup["facebook_count"] = json.load(urllib.request.urlopen(request_url))["Facebook"]["total_count"]
-                    print(startup["facebook_count"])
+                    resource = request.urlopen(request_url)
+                    content = json.loads(resource.read().decode('utf-8'))
+                    startup["facebook_count"] = content["Facebook"]["total_count"]
+                    print(content)
             except KeyError as e:
                 print('I got a KeyError - reason "%s"' % str(e))
                 print(startup)
